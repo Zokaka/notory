@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:notory/router/route.dart';
 import 'package:notory/views/demo/binding.dart';
 import 'package:notory/views/demo/index.dart';
+import 'package:notory/views/login/binding.dart';
 import 'package:notory/views/login/index.dart';
 import 'package:notory/views/main/binding.dart';
 import 'package:notory/views/main/index.dart';
@@ -25,14 +26,14 @@ class AppPages {
   /// binding: 可选，自动注入 Controller 和状态
   static final List<GetPage> routes = [
     GetPage(
-      name: AppRoutes.home,
+      name: AppRoutes.main,
       page: () => const MainPage(),
       binding: MainBinding(),
     ),
     GetPage(
       name: AppRoutes.login,
-      page: () => const Login(),
-      // binding: ChatbotBinding(),
+      page: () => const LoginPage(),
+      binding: LoginBinding(),
     ),
     GetPage(
       name: AppRoutes.demo,

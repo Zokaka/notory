@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:notory/router/index.dart';
 import 'package:notory/router/route.dart';
+import 'package:notory/utils/storage.dart';
 
-void main() {
+void main() async {
+  // 启动前绑定
+  WidgetsFlutterBinding.ensureInitialized();
+  // 初始化本地存储
+  await SPUtils.init();
   runApp(const MyApp());
 }
 
@@ -13,18 +18,31 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      debugShowCheckedModeBanner: false,
-      // 路由配置
-      initialRoute: AppRoutes.home,
-      getPages: AppPages.routes,
-      navigatorObservers: [AppPages.observer],
-    );
+    return FutureBuilder(
+        future: _getInitialRoute(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const CircularProgressIndicator();
+          }
+          return GetMaterialApp(
+            title: 'Flutter Demo',
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+              useMaterial3: true,
+            ),
+            debugShowCheckedModeBanner: false,
+            // 路由配置
+            initialRoute: snapshot.data as String,
+            getPages: AppPages.routes,
+            navigatorObservers: [AppPages.observer],
+          );
+        });
+  }
+
+  /// 判断登录状态，返回初始页面路径
+  Future<String> _getInitialRoute() async {
+    final token = SPUtils.getString('AppAuthToken');
+    return (token == null || token.isEmpty) ? AppRoutes.login : AppRoutes.main;
   }
 }
 
