@@ -51,13 +51,27 @@ class ApiService {
   InterceptorsWrapper _defaultInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) => handler.next(options),
-      onResponse: (response, handler) => handler.next(response),
+      onResponse: (response, handler) {
+        onResponse(response);
+        handler.next(response);
+      },
       onError: (DioException e, handler) {
         ErrorEntity eInfo = createErrorEntity(e);
         onError(eInfo);
         return handler.next(e);
       },
     );
+  }
+
+  void onResponse(Response response) {
+    final res = response.data; // 已经是 Map，不需要再 jsonDecode
+
+    // 如果你想访问 code 字段：
+    final code = res['code'];
+    final msg = res['msg'];
+    if (code == 7) {
+      toastInfo(msg ?? '发生错误');
+    }
   }
 
   /// 异常处理逻辑

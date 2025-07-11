@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:notory/views/home/index.dart';
 import 'package:notory/views/main/controller.dart';
+import 'package:notory/views/mine/index.dart';
+import 'package:notory/views/notes/index.dart';
 
 class MainPage extends GetView<MainController> {
   const MainPage({super.key});
@@ -12,9 +14,9 @@ class MainPage extends GetView<MainController> {
       case 0:
         return const HomePage();
       case 1:
-        return const Center(child: Text('笔记'));
+        return const NotesPage();
       case 2:
-        return const Center(child: Text('我的'));
+        return const MinePage();
       default:
         return const Center(child: Text('未知页面'));
     }

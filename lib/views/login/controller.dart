@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:get/get.dart';
 import 'package:notory/api/auth/index.dart';
 import 'package:notory/router/route.dart';
@@ -46,9 +48,10 @@ class LoginController extends GetxController {
     try {
       final res = await AuthAPI.login(data);
       await SPUtils.setString('AppAuthToken', res['token']);
+      // jsonEncode需要引入dart:convert
+      await SPUtils.setString('UserInfo', jsonEncode(res['user']));
       Get.offAllNamed(AppRoutes.main);
     } catch (e) {
-      toastInfo('登录失败');
       getCaptcha(); // 刷新验证码
     }
   }

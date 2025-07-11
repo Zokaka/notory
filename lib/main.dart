@@ -12,6 +12,8 @@ void main() async {
   runApp(const MyApp());
 }
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -35,6 +37,7 @@ class MyApp extends StatelessWidget {
             initialRoute: snapshot.data as String,
             getPages: AppPages.routes,
             navigatorObservers: [AppPages.observer],
+            navigatorKey: navigatorKey, // ✅ 绑定 navigatorKey
           );
         });
   }

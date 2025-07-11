@@ -1,47 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:notory/main.dart';
 
-GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+/// 全平台兼容的 toast 提示
+void toastInfo(String msg, {Color backgroundColor = Colors.black}) {
+  final context = navigatorKey.currentContext;
 
-void toastInfo(
-    String msg, {
-      Color backgroundColor = Colors.black,
-      Color textColor = Colors.white,
-      ToastGravity gravity = ToastGravity.BOTTOM,
-    }) {
-  FToast fToast = FToast();
-  fToast.init(navigatorKey.currentContext!);
-  fToast.removeCustomToast();
-  Widget toast = Container(
-    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(25.0),
-      color: backgroundColor,
+  if (context == null) {
+    debugPrint('❌ toastInfo: context is null');
+    return;
+  }
+
+  ScaffoldMessenger.of(context).clearSnackBars(); // 清除旧的
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(msg),
+      backgroundColor: backgroundColor,
+      duration: const Duration(seconds: 2),
     ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Icon(Icons.check),
-        // SizedBox(
-        //   width: 12.0,
-        // ),
-        Text(
-          msg,
-          style: TextStyle(
-            color: textColor,
-          ),
-        ),
-      ],
-    ),
-  );
-
-  return fToast.showToast(
-    toastDuration: const Duration(seconds: 2),
-    gravity: gravity,
-    // timeInSecForIosWeb: 1,
-    // backgroundColor: backgroundColor,
-    // textColor: textColor,
-    // fontSize: 14.sp,
-    child: toast,
   );
 }

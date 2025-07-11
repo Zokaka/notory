@@ -1,3 +1,4 @@
+import 'package:notory/utils/logger.dart';
 import 'package:notory/utils/request.dart';
 
 class AuthAPI {
@@ -11,9 +12,20 @@ class AuthAPI {
 
   /// 登录
   static Future<Map<String, dynamic>> login(Map<String, dynamic> data) async {
-    print('请求体：$data');
     final res = await _http.post('/base/login', data: data);
-    print('登录：$res');
     return res['data'];
+  }
+
+  /// 获取用户信息
+  static Future<Map<String, dynamic>> getUserInfo() async {
+    final res = await _http.get('/user/getUserInfo');
+    return res;
+  }
+
+  /// 签到
+  static Future<Map<String, dynamic>> checkIn() async {
+    final res = await _http.post('/walletBase/getDailyReward');
+    logger.i("签到结果：$res");
+    return res;
   }
 }
