@@ -66,8 +66,8 @@ class HomePage extends GetView<HomeController> {
                                       fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              for (var word in controller.state.searchHistory)
-                                _buildListItem('单词', word),
+                              for (var item in controller.state.searchHistory)
+                                _buildListItem(item.word, item.meaning),
                             ],
                           )),
                     ),

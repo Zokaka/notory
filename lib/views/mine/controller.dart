@@ -22,7 +22,7 @@ class MineController extends GetxController {
 
   void initUserInfo() async {
     // ① 优先读取缓存
-    final jsonStr = await SPUtils.getString('UserInfo');
+    final jsonStr = SPUtils.getString('UserInfo');
     bool hasCache = jsonStr != null && jsonStr.isNotEmpty;
     logger.i('是否存在缓存：$hasCache');
     if (hasCache) {
