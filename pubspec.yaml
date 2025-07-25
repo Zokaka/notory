@@ -44,8 +44,6 @@ dependencies:
   get: ^4.7.2
   #轻量级存储库
   shared_preferences: ^2.5.3
-  #toast 组件
-  fluttertoast: ^8.2.12
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +70,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/default_avatar.png
+    - assets/images/logo.png
     - assets/background/bg01.jpg
     - assets/icons/icon01.png
     - assets/icons/icon02.png

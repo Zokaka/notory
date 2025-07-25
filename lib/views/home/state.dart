@@ -8,12 +8,16 @@ class WordItem {
   WordItem({required this.word, required this.meaning});
 }
 
+class SearchHistoryItem {
+  final String word;
+  final String meaning;
+
+  SearchHistoryItem({required this.word, required this.meaning});
+}
+
 class HomeState {
   //  搜索历史
-  RxList<WordItem> searchHistory = [
-    WordItem(word: 'abandon', meaning: '放弃'),
-    WordItem(word: 'apple', meaning: '苹果'),
-  ].obs;
+  RxList searchHistory = [].obs;
 
   // 自动完成相关状态
   final RxString searchText = ''.obs;
