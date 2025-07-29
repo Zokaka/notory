@@ -6,6 +6,7 @@ import 'package:notory/api/auth/index.dart';
 import 'package:notory/router/route.dart';
 import 'package:notory/utils/logger.dart';
 import 'package:notory/utils/storage.dart';
+import 'package:notory/utils/toast.dart';
 import 'package:notory/views/mine/state.dart';
 
 class MineController extends GetxController {
@@ -38,7 +39,7 @@ class MineController extends GetxController {
         final userInfo = res['data']['userInfo'];
         logger.i('调用结果：$userInfo');
         await SPUtils.setString('UserInfo', jsonEncode(userInfo));
-
+    
         // 如果没有缓存时，接口返回成功后再渲染一次
         if (!hasCache) _updateUserState(userInfo);
       }
@@ -60,6 +61,8 @@ class MineController extends GetxController {
     state.signedIn.value = 0;
     final res = await AuthAPI.checkIn();
     logger.i("调用签到：$res");
+    if(res['code'] == 0) {}
+    toastInfo('签到成功！');
   }
 
   /// 退出登录

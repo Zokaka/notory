@@ -24,6 +24,9 @@ class HomeState {
   final RxList<String> suggestions = <String>[].obs;
   final RxBool showSuggestions = false.obs;
 
+  final RxBool isOutputting = false.obs;
+  final RxString aiResponseText = ''.obs;
+
   // 示例词库 - 实际项目中可以从API获取
   final List<String> wordDatabase = [
     'apple',

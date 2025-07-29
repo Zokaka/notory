@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:notory/api/auth/index.dart';
 import 'package:notory/router/route.dart';
+import 'package:notory/utils/logger.dart';
 import 'package:notory/utils/storage.dart';
 import 'package:notory/utils/toast.dart';
 import 'package:notory/views/login/state.dart';

@@ -120,11 +120,12 @@ class LoginPage extends GetView<LoginController> {
                   child: ElevatedButton(
                     onPressed: controller.onLogin,
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF249CF2),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text('登录'),
+                    child: const Text('登录',style: TextStyle(color: const Color(0xFFFFFFFF),),),
                   ),
                 ),
               ],
