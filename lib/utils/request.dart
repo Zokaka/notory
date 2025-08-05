@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cookie_jar/cookie_jar.dart';
@@ -66,12 +67,23 @@ class ApiService {
     _dio.interceptors.add(_defaultInterceptor());
   }
 
+  // 👇 新增：公开获取 Dio 实例的方法
+  Dio get dio => _dio;
+
+  // 👇 新增：获取带指定 baseUrl 的 Dio 实例（公开方法）
+  Dio getDioWithBaseUrl(String? baseUrl) {
+    return _getDioWithBaseUrl(baseUrl);
+  }
+
   /// 请求拦截器
   InterceptorsWrapper _defaultInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) => handler.next(options),
       onResponse: (response, handler) {
-        _onResponse(response);
+        // 👇 修改：跳过流式响应的处理
+        if (response.requestOptions.responseType != ResponseType.stream) {
+          _onResponse(response);
+        }
         handler.next(response);
       },
       onError: (DioException e, handler) {
@@ -159,6 +171,71 @@ class ApiService {
       return newDio;
     }
     return _dio;
+  }
+
+  // 👇 新增：流式请求的专用方法
+  Future<Response<ResponseBody>> streamRequest({
+    required String url,
+    required String method,
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    String? baseUrl,
+    Options? options,
+    CancelToken? cancelToken,
+  }) async {
+    final dio = _getDioWithBaseUrl(baseUrl);
+
+    // 准备请求选项
+    Options requestOptions = options ?? Options();
+    requestOptions.responseType = ResponseType.stream;
+    requestOptions.headers = {
+      ...requestOptions.headers ?? {},
+      ...await _getAuthorizationHeader(),
+    };
+
+    switch (method.toLowerCase()) {
+      case 'get':
+        return await dio.get<ResponseBody>(
+          url,
+          queryParameters: queryParameters,
+          options: requestOptions,
+          cancelToken: cancelToken ?? this.cancelToken,
+        );
+      case 'post':
+        return await dio.post<ResponseBody>(
+          url,
+          data: data,
+          queryParameters: queryParameters,
+          options: requestOptions,
+          cancelToken: cancelToken ?? this.cancelToken,
+        );
+      case 'put':
+        return await dio.put<ResponseBody>(
+          url,
+          data: data,
+          queryParameters: queryParameters,
+          options: requestOptions,
+          cancelToken: cancelToken ?? this.cancelToken,
+        );
+      case 'patch':
+        return await dio.patch<ResponseBody>(
+          url,
+          data: data,
+          queryParameters: queryParameters,
+          options: requestOptions,
+          cancelToken: cancelToken ?? this.cancelToken,
+        );
+      case 'delete':
+        return await dio.delete<ResponseBody>(
+          url,
+          data: data,
+          queryParameters: queryParameters,
+          options: requestOptions,
+          cancelToken: cancelToken ?? this.cancelToken,
+        );
+      default:
+        throw ArgumentError('不支持的请求方法: $method');
+    }
   }
 }
 
@@ -421,6 +498,86 @@ class Http {
       data: data,
       options: options,
     );
+  }
+
+  /// 流式POST请求
+  static Future<void> postStream(
+    String url, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    String? baseUrl,
+    Options? options,
+    CancelToken? cancelToken,
+    required void Function(String chunk) onData,
+    void Function(dynamic error)? onError,
+    void Function()? onDone,
+  }) async {
+    try {
+      final response = await ApiService().streamRequest(
+        url: url,
+        method: 'POST',
+        data: data,
+        queryParameters: queryParameters,
+        baseUrl: baseUrl,
+        options: options,
+        cancelToken: cancelToken,
+      );
+
+      logger.i("✅ 流式连接成功：${response.statusCode}");
+
+      final stream = response.data!.stream;
+      final transformer = utf8.decoder.bind(stream);
+
+      await for (final line in transformer) {
+        if (line.trim().isNotEmpty) {
+          onData(line);
+        }
+      }
+
+      onDone?.call();
+    } catch (e) {
+      logger.e("❌ 流式请求错误：$e");
+      onError?.call(e);
+    }
+  }
+
+  /// 流式GET请求
+  static Future<void> getStream(
+    String url, {
+    Map<String, dynamic>? queryParameters,
+    String? baseUrl,
+    Options? options,
+    CancelToken? cancelToken,
+    required void Function(String chunk) onData,
+    void Function(dynamic error)? onError,
+    void Function()? onDone,
+  }) async {
+    try {
+      final response = await ApiService().streamRequest(
+        url: url,
+        method: 'GET',
+        queryParameters: queryParameters,
+        baseUrl: baseUrl,
+        options: options,
+        cancelToken: cancelToken,
+      );
+
+      logger.i("✅ 流式连接成功：${response.statusCode}");
+
+      final stream = response.data!.stream;
+      final transformer = utf8.decoder.bind(stream);
+
+      await for (final line in transformer) {
+        if (line.trim().isNotEmpty) {
+          onData(line);
+        }
+      }
+
+      onDone?.call();
+    } catch (e) {
+      logger.e("❌ 流式请求错误：$e");
+      onError?.call(e);
+    }
   }
 }
 

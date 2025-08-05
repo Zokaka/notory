@@ -6,9 +6,10 @@ class NotesState {
   /// 分页参数
   RxInt pageNum = 1.obs;
   RxInt pageSize = 10.obs;
+  RxBool isLoading = true.obs;
 
   /// 数据列表
-  RxList<Map<String, String>> list = <Map<String, String>>[].obs;
+  RxList<dynamic> list = <dynamic>[].obs;
 
   /// 是否正在加载更多
   RxBool isLoadingMore = false.obs;

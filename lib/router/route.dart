@@ -6,4 +6,6 @@ class AppRoutes {
   static const settings = '/settings';
 
   static const demo = '/demo';
+
+  static const noteDetail = '/note/detail';
 }

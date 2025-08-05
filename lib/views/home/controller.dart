@@ -1,4 +1,6 @@
 // views/home/controller.dart
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -155,48 +157,97 @@ class HomeController extends GetxController {
     final text = searchController.text.trim();
     if (text.isEmpty) return;
     getWordMeaning(text);
-    // 这里可以调用实际的搜索API(暂时废弃)
-    // 暂时添加到搜索历史
-    // final newItem = SearchHistoryItem(word: text, meaning: '搜索结果: $text');
-    //
-    // // 避免重复添加
-    // state.searchHistory.removeWhere((item) => item.word == text);
-    // state.searchHistory.insert(0, newItem);
-    //
-    // // 清空输入框和建议
-    // searchController.clear();
-    // state.showSuggestions.value = false;
-    // state.suggestions.clear();
-    // try {
-    //   final data = await AuthAPI.wordSearch(text);
-    //   logger.i('查询单词结果：$data');
-    // } catch (e) {
-    //   print('查询单词结果：$e');
-    //   toastInfo('查询失败！');
-    // }
   }
 
+  /// 👇 修改：SSE 数据解析方法
+  String _parseSSEData(String chunk) {
+    try {
+      // 🔍 调试：打印原始数据
+      logger.i("🔍 原始SSE数据: '$chunk'");
+
+      final lines = chunk.split('\n');
+      String content = '';
+
+      for (String line in lines) {
+        line = line.trim();
+
+        if (line.isEmpty || !line.startsWith('data: ')) {
+          continue;
+        }
+
+        final jsonStr = line.substring(6);
+        if (jsonStr == '[DONE]') {
+          continue;
+        }
+
+        try {
+          final jsonData = json.decode(jsonStr);
+
+          if (jsonData is Map<String, dynamic> &&
+              jsonData['choices'] is List &&
+              jsonData['choices'].isNotEmpty) {
+            final choice = jsonData['choices'][0];
+            if (choice is Map<String, dynamic> &&
+                choice['delta'] is Map<String, dynamic> &&
+                choice['delta']['content'] is String) {
+              final deltaContent = choice['delta']['content'] as String;
+              content += deltaContent;
+
+              // 🔍 调试：检查内容是否包含 Markdown 符号
+              if (deltaContent.contains('*') || deltaContent.contains('#')) {
+                logger.i("🔍 检测到Markdown符号: '$deltaContent'");
+              }
+            }
+          }
+        } catch (e) {
+          logger.w("⚠️ JSON 解析失败: $e, 原始数据: $jsonStr");
+        }
+      }
+
+      // 🔍 调试：打印最终解析的内容
+      if (content.isNotEmpty) {
+        logger.i("🔍 解析后的内容: '$content'");
+      }
+
+      return content;
+    } catch (e) {
+      logger.e("❌ SSE 数据解析错误: $e");
+      return '';
+    }
+  }
+
+  /// 👇 修改：获取单词含义的方法
   void getWordMeaning(String word) async {
     final word = searchController.text.trim();
     if (word.isEmpty) return;
 
     state.isOutputting.value = true;
     state.aiResponseText.value = '';
-    cancelToken = CancelToken(); // ✅ 赋值给 controller 的成员变量
-    logger.i("准备调用接口");
+    cancelToken = CancelToken();
+
+    logger.i("🚀 准备调用接口，查询单词: $word");
+
     await ChatApi.getDefinitionStream(
       word: word,
       cancelToken: cancelToken,
       onData: (chunk) {
-        state.aiResponseText.value += chunk;
-        logger.i("流式内容：$state.aiResponseText.value");
+        // 🔥 关键修改：解析 SSE 数据并提取内容
+        final content = _parseSSEData(chunk);
+
+        if (content.isNotEmpty) {
+          // 只有解析出内容时才更新 UI
+          state.aiResponseText.value += content;
+          logger.i("📝 累积内容长度: ${state.aiResponseText.value.length}");
+        }
       },
       onDone: () {
         state.isOutputting.value = false;
+        logger.i("✅ 流式传输完成，最终内容长度: ${state.aiResponseText.value.length}");
       },
       onError: (err) {
         state.isOutputting.value = false;
         state.aiResponseText.value = "出错了: ${err.toString()}";
+        logger.e("❌ 流式传输错误: $err");
       },
     );
   }

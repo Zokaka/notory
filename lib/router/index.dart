@@ -7,6 +7,8 @@ import 'package:notory/views/login/binding.dart';
 import 'package:notory/views/login/index.dart';
 import 'package:notory/views/main/binding.dart';
 import 'package:notory/views/main/index.dart';
+import 'package:notory/views/noteDetail/binding.dart';
+import 'package:notory/views/noteDetail/index.dart';
 
 import 'observer.dart';
 
@@ -40,5 +42,10 @@ class AppPages {
       page: () => const DemoPage(),
       binding: DemoBinding(),
     ),
+    GetPage(
+      name: '${AppRoutes.noteDetail}/:id',
+      page: () => const NoteDetailPage(),
+      binding: NoteDetailBinding(),
+    )
   ];
 }

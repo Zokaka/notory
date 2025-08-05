@@ -1,4 +1,6 @@
 import 'package:get/get.dart';
+import 'package:notory/api/notes/index.dart';
+import 'package:notory/utils/logger.dart';
 import 'package:notory/views/notes/state.dart';
 
 class NotesController extends GetxController {
@@ -26,26 +28,49 @@ class NotesController extends GetxController {
     });
   }
 
-  /// 初始化 / 下拉刷新
   Future<void> getList() async {
+    state.isLoading.value = true;
     state.pageNum.value = 1;
-    final data = await fetchList(state.pageNum.value, state.pageSize.value);
-    state.list.value = data;
-    state.hasMore.value = state.pageSize == data.length;
+
+    try {
+      final res = await NotesAPI.getBlogList(
+        page: state.pageNum.value,
+        pageSize: state.pageSize.value,
+      );
+      final list = res['list'];
+      final total = res['total'];
+
+      state.list.value = list;
+      state.hasMore.value =
+          (state.pageNum.value * state.pageSize.value) < total;
+    } catch (e) {
+      logger.e("加载失败: $e");
+    } finally {
+      state.isLoading.value = false;
+    }
   }
 
-  /// 加载更多
   Future<void> loadMoreNotes() async {
     if (state.isLoadingMore.value || !state.hasMore.value) return;
+
     state.isLoadingMore.value = true;
+    state.pageNum.value++;
 
-    state.pageNum++;
-    final data = await fetchList(state.pageNum.value, state.pageSize.value);
-    if (data.isNotEmpty) {
-      state.list.addAll(data);
+    try {
+      final res = await NotesAPI.getBlogList(
+        page: state.pageNum.value,
+        pageSize: state.pageSize.value,
+      );
+      final list = res['data']['list'];
+      final total = res['data']['total'];
+
+      state.list.addAll(list);
+      state.hasMore.value =
+          (state.pageNum.value * state.pageSize.value) < total;
+    } catch (e) {
+      logger.e("加载失败: $e");
+    } finally {
+      state.isLoadingMore.value = false;
     }
-
-    state.hasMore.value = data.length == state.pageSize;
-    state.isLoadingMore.value = false;
   }
 }

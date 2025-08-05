@@ -45,6 +45,11 @@ dependencies:
   #轻量级存储库
   shared_preferences: ^2.5.3
 
+  #Markdown 相关样式
+  flutter_markdown: ^0.7.7+1
+  markdown: ^7.3.0
+  url_launcher: ^6.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
