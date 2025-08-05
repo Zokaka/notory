@@ -2,11 +2,12 @@ import 'dart:convert';
 
 import 'package:get/get.dart';
 import 'package:notory/api/auth/index.dart';
-import 'package:notory/router/route.dart';
 import 'package:notory/utils/logger.dart';
 import 'package:notory/utils/storage.dart';
 import 'package:notory/utils/toast.dart';
 import 'package:notory/views/login/state.dart';
+
+import '../../router/route.dart';
 
 class LoginController extends GetxController {
   LoginController();
@@ -24,8 +25,9 @@ class LoginController extends GetxController {
   void getCaptcha() async {
     try {
       final data = await AuthAPI.getCaptcha();
-      state.captchaId.value = data['captchaId'];
-      state.captchaImg.value = data['picPath'];
+      // logger.i('验证码信息：$data');
+      state.captchaId.value = data?['captchaId'];
+      state.captchaImg.value = data?['picPath'];
     } catch (e) {
       print('获取验证码失败：');
       toastInfo('验证码加载失败');
@@ -48,8 +50,8 @@ class LoginController extends GetxController {
 
     try {
       final res = await AuthAPI.login(data);
+      logger.i('登录返回：$res');
       await SPUtils.setString('AppAuthToken', res['token']);
-      // jsonEncode需要引入dart:convert
       await SPUtils.setString('UserInfo', jsonEncode(res['user']));
       Get.offAllNamed(AppRoutes.main);
     } catch (e) {

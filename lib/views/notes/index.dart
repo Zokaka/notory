@@ -1,7 +1,9 @@
 // views/notes/index.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:notory/api/blog/types.dart';
 import 'package:notory/router/route.dart';
+import 'package:notory/utils/formats.dart';
 import 'package:notory/views/notes/controller.dart';
 
 class NotesPage extends GetView<NotesController> {
@@ -42,12 +44,7 @@ class NotesPage extends GetView<NotesController> {
                     }
 
                     final note = state.list[index];
-                    final createdAt =
-                        DateTime.tryParse(note['CreatedAt'] ?? '');
-                    final formattedTime = createdAt != null
-                        ? "${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}"
-                        : '';
-
+                    final formattedTime = formatDate(note.createdAt);
                     return _buildNoteCard(note, formattedTime);
                   },
                 ),
@@ -57,7 +54,7 @@ class NotesPage extends GetView<NotesController> {
         ));
   }
 
-  Widget _buildNoteCard(Map<String, dynamic> note, String formattedTime) {
+  Widget _buildNoteCard(BlogArticle note, String formattedTime) {
     return InkWell(
       onTap: () => _navigateToDetail(note),
       borderRadius: BorderRadius.circular(12),
@@ -79,14 +76,14 @@ class NotesPage extends GetView<NotesController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              note['title'] ?? '',
+              note.title ?? '',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 8),
             Text(
-              note['content'] ?? '',
+              note.content ?? '',
               style: const TextStyle(fontSize: 14, color: Colors.black87),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
@@ -107,9 +104,9 @@ class NotesPage extends GetView<NotesController> {
 }
 
 /// 跳转到详情页
-void _navigateToDetail(Map<String, dynamic> note) {
+void _navigateToDetail(BlogArticle note) {
   // 获取笔记ID
-  final noteId = note['ID'] ?? note['id'];
+  final noteId = note.id;
 
   if (noteId == null) {
     Get.snackbar(

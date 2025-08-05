@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:notory/api/blog/types.dart';
 
 /// .obs 是 GetX 提供的 响应式包装器，让普通变量变成“响应式”状态，像 Vue 的 ref 或 React 的 useState
 class NoteDetailState {
@@ -6,7 +7,7 @@ class NoteDetailState {
   var isLoading = false.obs;
 
   // 详情数据
-  var noteDetail = <String, dynamic>{}.obs;
+  var noteDetail = Rx<BlogArticle?>(null);
 
   // 错误信息
   var errorMessage = ''.obs;

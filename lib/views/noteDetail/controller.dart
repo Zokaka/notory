@@ -1,5 +1,5 @@
 import 'package:get/get.dart';
-import 'package:notory/api/notes/index.dart';
+import 'package:notory/api/blog/index.dart';
 import 'package:notory/utils/logger.dart';
 import 'package:notory/views/noteDetail/state.dart';
 
@@ -42,11 +42,10 @@ class NoteDetailController extends GetxController {
       state.errorMessage.value = '';
 
       // 调用API获取详情 - 这里需要根据你的实际API调整
-      final response = await NotesAPI.getBlogDetail(int.parse(noteId!));
-
+      final response = await BlogAPI.getBlogDetail(int.parse(noteId!));
+      logger.i('文章详情$response');
       if (response != null) {
         state.noteDetail.value = response;
-        logger.i('笔记详情加载成功: ${response['title']}');
       } else {
         throw Exception('获取数据失败');
       }
@@ -65,30 +64,30 @@ class NoteDetailController extends GetxController {
   }
 
   /// 获取格式化的创建时间
-  String get formattedCreateTime {
-    final createdAt = state.noteDetail['CreatedAt'];
-    if (createdAt == null) return '';
-
-    try {
-      final dateTime = DateTime.parse(createdAt);
-      return "${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
-    } catch (e) {
-      return createdAt.toString();
-    }
-  }
+  // String get formattedCreateTime {
+  //   final createdAt = state.noteDetail['CreatedAt'];
+  //   if (createdAt == null) return '';
+  //
+  //   try {
+  //     final dateTime = DateTime.parse(createdAt);
+  //     return "${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
+  //   } catch (e) {
+  //     return createdAt.toString();
+  //   }
+  // }
 
   /// 获取格式化的发布时间
-  String get formattedPublishTime {
-    final publishTime = state.noteDetail['publishTime'];
-    if (publishTime == null) return '';
-
-    try {
-      final dateTime = DateTime.parse(publishTime);
-      return "${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
-    } catch (e) {
-      return publishTime.toString();
-    }
-  }
+  // String get formattedPublishTime {
+  //   final publishTime = state.noteDetail['publishTime'];
+  //   if (publishTime == null) return '';
+  //
+  //   try {
+  //     final dateTime = DateTime.parse(publishTime);
+  //     return "${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
+  //   } catch (e) {
+  //     return publishTime.toString();
+  //   }
+  // }
 
   /// 返回上一页
   void goBack() {

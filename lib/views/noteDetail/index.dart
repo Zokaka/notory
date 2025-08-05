@@ -1,6 +1,8 @@
 // views/note_detail/index.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:notory/api/blog/types.dart';
+import 'package:notory/utils/formats.dart';
 
 import 'controller.dart';
 
@@ -20,7 +22,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
           return _buildErrorView();
         }
 
-        if (controller.state.noteDetail.isEmpty) {
+        if (controller.state.noteDetail.value == null) {
           return const Center(child: Text('暂无数据'));
         }
 
@@ -68,7 +70,11 @@ class NoteDetailPage extends GetView<NoteDetailController> {
 
   /// 构建详情视图
   Widget _buildDetailView() {
-    final note = controller.state.noteDetail;
+    final note = controller.state.noteDetail.value;
+
+    if (note == null) {
+      return const Center(child: CircularProgressIndicator()); // 或提示无数据
+    }
 
     return CustomScrollView(
       slivers: [
@@ -133,8 +139,8 @@ class NoteDetailPage extends GetView<NoteDetailController> {
   }
 
   /// 构建封面图片
-  Widget _buildCoverImage(Map<String, dynamic> note) {
-    final coverImage = note['coverImage'];
+  Widget _buildCoverImage(BlogArticle note) {
+    final coverImage = note.coverImage;
 
     if (coverImage != null && coverImage.isNotEmpty) {
       return Image.network(
@@ -175,7 +181,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
   }
 
   /// 构建头部信息
-  Widget _buildHeader(Map<String, dynamic> note) {
+  Widget _buildHeader(BlogArticle note) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -183,7 +189,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
         children: [
           // 标题
           Text(
-            note['title'] ?? '无标题',
+            note.title ?? '无标题',
             style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -197,7 +203,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
           _buildMetaInfo(note),
 
           // 标签
-          if (note['isPinned'] == true) ...[
+          if (note.isPinned == true) ...[
             const SizedBox(height: 12),
             _buildTags(note),
           ],
@@ -207,7 +213,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
   }
 
   /// 构建元信息
-  Widget _buildMetaInfo(Map<String, dynamic> note) {
+  Widget _buildMetaInfo(BlogArticle note) {
     return Row(
       children: [
         Icon(
@@ -217,7 +223,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
         ),
         const SizedBox(width: 4),
         Text(
-          controller.formattedPublishTime,
+          formatDateTime(note.publishTime),
           style: TextStyle(
             fontSize: 14,
             color: Colors.grey[600],
@@ -231,7 +237,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
         ),
         const SizedBox(width: 4),
         Text(
-          'ID: ${note['ID']}',
+          'ID: ${note.id}',
           style: TextStyle(
             fontSize: 14,
             color: Colors.grey[600],
@@ -242,11 +248,11 @@ class NoteDetailPage extends GetView<NoteDetailController> {
   }
 
   /// 构建标签
-  Widget _buildTags(Map<String, dynamic> note) {
+  Widget _buildTags(BlogArticle note) {
     return Wrap(
       spacing: 8,
       children: [
-        if (note['isPinned'] == true)
+        if (note.isPinned == true)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
@@ -273,7 +279,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
               ],
             ),
           ),
-        if (note['status'] == '1')
+        if (note.status == '1')
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
@@ -294,7 +300,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
   }
 
   /// 构建作者信息
-  Widget _buildAuthorInfo(Map<String, dynamic> note) {
+  Widget _buildAuthorInfo(BlogArticle note) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
@@ -304,7 +310,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
             radius: 24,
             backgroundColor: Colors.blue[100],
             child: Text(
-              _getAuthorInitial(note['authorId']),
+              _getAuthorInitial(note.authorId),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -320,7 +326,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '作者 ${note['authorId'] ?? 'Unknown'}',
+                  '作者 ${note.authorId ?? 'Unknown'}',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -329,7 +335,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '发布于 ${controller.formattedPublishTime}',
+                  '发布于 ${formatDate(note.publishTime)}',
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.grey[600],
@@ -362,7 +368,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
   }
 
   /// 构建正文内容
-  Widget _buildContent(Map<String, dynamic> note) {
+  Widget _buildContent(BlogArticle note) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -386,7 +392,7 @@ class NoteDetailPage extends GetView<NoteDetailController> {
               border: Border.all(color: Colors.grey[200]!),
             ),
             child: Text(
-              note['content'] ?? '暂无内容',
+              note.content ?? '暂无内容',
               style: const TextStyle(
                 fontSize: 16,
                 height: 1.6,

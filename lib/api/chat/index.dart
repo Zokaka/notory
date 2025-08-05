@@ -10,7 +10,7 @@ class ChatApi {
     void Function()? onDone,
     CancelToken? cancelToken,
   }) async {
-    await Http.postStream(
+    await HttpClient.postStream(
       '/toolTranslationWords/createToolTranslationWords',
       data: {
         'word': word,

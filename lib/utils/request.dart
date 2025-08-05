@@ -1,3 +1,4 @@
+// api_service.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,34 +7,75 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' as get_x;
+import 'package:notory/router/route.dart';
 
-import '../router/route.dart';
 import 'constant.dart';
 import 'logger.dart';
 import 'storage.dart';
 import 'toast.dart';
 
-/// 请求参数配置
-class RequestOptions {
-  final String? baseUrl;
-  final Map<String, dynamic>? queryParameters;
-  final Options? options;
-  final bool refresh;
-  final bool noCache;
-  final bool list;
-  final String cacheKey;
-  final bool cacheDisk;
+// api_response.dart
+/// 统一的API响应格式
+class ApiResponse<T> {
+  final int code;
+  final String message;
+  final T? data;
+  final bool success;
 
-  RequestOptions({
-    this.baseUrl,
-    this.queryParameters,
-    this.options,
-    this.refresh = false,
-    this.noCache = false,
-    this.list = false,
-    this.cacheKey = '',
-    this.cacheDisk = false,
+  ApiResponse({
+    required this.code,
+    required this.message,
+    this.data,
+  }) : success = code == 0;
+
+  factory ApiResponse.fromJson(
+      Map<String, dynamic> json, T Function(dynamic)? fromJsonT) {
+    return ApiResponse<T>(
+      code: json['code'] ?? -1,
+      message: json['msg'] ?? '',
+      data: fromJsonT != null && json['data'] != null
+          ? fromJsonT(json['data'])
+          : json['data'],
+    );
+  }
+
+  /// 创建成功响应
+  factory ApiResponse.success(T data, {String message = '操作成功'}) {
+    return ApiResponse<T>(
+      code: 0,
+      message: message,
+      data: data,
+    );
+  }
+
+  /// 创建失败响应
+  factory ApiResponse.error(int code, String message) {
+    return ApiResponse<T>(
+      code: code,
+      message: message,
+    );
+  }
+
+  @override
+  String toString() =>
+      'ApiResponse(code: $code, message: $message, data: $data)';
+}
+
+// request_exception.dart
+/// 请求异常类
+class RequestException implements Exception {
+  final int code;
+  final String message;
+  final String? details;
+
+  RequestException({
+    required this.code,
+    required this.message,
+    this.details,
   });
+
+  @override
+  String toString() => 'RequestException(code: $code, message: $message)';
 }
 
 /// API请求服务类（单例）
@@ -46,6 +88,10 @@ class ApiService {
   CancelToken cancelToken = CancelToken();
 
   ApiService._internal() {
+    _initDio();
+  }
+
+  void _initDio() {
     BaseOptions options = BaseOptions(
       baseUrl: HttpConfig.apiServiceUrl,
       connectTimeout: const Duration(seconds: 60),
@@ -60,121 +106,253 @@ class ApiService {
     if (!kIsWeb) {
       CookieJar cookieJar = CookieJar();
       _dio.interceptors.add(CookieManager(cookieJar));
-    } else {
-      logger.i("Web 环境下不能使用 dio_cookie_manager");
     }
 
-    _dio.interceptors.add(_defaultInterceptor());
+    _dio.interceptors.add(_createInterceptor());
   }
 
-  // 👇 新增：公开获取 Dio 实例的方法
-  Dio get dio => _dio;
-
-  // 👇 新增：获取带指定 baseUrl 的 Dio 实例（公开方法）
-  Dio getDioWithBaseUrl(String? baseUrl) {
-    return _getDioWithBaseUrl(baseUrl);
-  }
-
-  /// 请求拦截器
-  InterceptorsWrapper _defaultInterceptor() {
+  /// 创建拦截器
+  InterceptorsWrapper _createInterceptor() {
     return InterceptorsWrapper(
-      onRequest: (options, handler) => handler.next(options),
+      onRequest: (options, handler) async {
+        // 添加认证头
+        final authHeaders = await _getAuthorizationHeader();
+        options.headers.addAll(authHeaders);
+
+        // logger.d('请求: ${options.method} ${options.baseUrl}${options.path}');
+        // logger.d('请求头: ${options.headers}');
+        if (options.data != null) {
+          logger.d('请求体: ${options.data}');
+        }
+
+        handler.next(options);
+      },
       onResponse: (response, handler) {
-        // 👇 修改：跳过流式响应的处理
         if (response.requestOptions.responseType != ResponseType.stream) {
-          _onResponse(response);
+          _handleResponse(response);
         }
         handler.next(response);
       },
       onError: (DioException e, handler) {
-        ErrorEntity eInfo = _createErrorEntity(e);
-        _onError(eInfo);
-        return handler.next(e);
+        _handleError(e);
+        handler.next(e);
       },
     );
   }
 
-  void _onResponse(Response response) {
-    final res = response.data;
-    logger.i('封装请求结果：$res');
+  /// 处理响应
+  void _handleResponse(Response response) {
+    final data = response.data;
 
-    // 处理第三方接口返回的非标准格式（直接返回数组或对象）
-    if (res is List) {
-      // 如果是数组，直接返回，不做额外处理
-      logger.i('第三方接口返回数组格式，直接返回');
+    // 处理非标准格式响应
+    if (data is List) {
+      logger.i('接口返回数组格式');
       return;
     }
 
-    if (res is Map<String, dynamic>) {
-      // 检查是否包含标准的code和msg字段
-      if (res.containsKey('code') && res.containsKey('msg')) {
-        final code = res['code'];
-        final msg = res['msg'];
-        if (code == 7) {
-          toastInfo(msg ?? '发生错误');
-        }
-      } else {
-        // 第三方接口返回的对象格式，没有标准的code/msg结构
-        logger.i('第三方接口返回对象格式，无标准code/msg结构');
+    if (data is Map<String, dynamic>) {
+      final code = data['code'];
+      final message = data['msg'] ?? '';
+
+      logger.i('响应: code=$code, message=$message');
+
+      // 根据不同的code做处理
+      switch (code) {
+        case 0:
+          // 成功，不做特殊处理
+          break;
+        case 7:
+          // 业务提示信息
+          if (message.isNotEmpty) {
+            toastInfo(message);
+          }
+          break;
+        case 401:
+          // 未授权，跳转到登录页
+          _handleUnauthorized();
+          break;
+        default:
+          // 其他错误码
+          if (message.isNotEmpty) {
+            toastInfo(message);
+          }
+          break;
       }
     }
   }
 
-  void _onError(ErrorEntity eInfo) {
-    logger.i('error.code -> ${eInfo.code}, error.message -> ${eInfo.message}');
-    switch (eInfo.code) {
-      case 401:
-        get_x.Get.offAllNamed(AppRoutes.login);
-        break;
-      default:
-        break;
-    }
-  }
+  /// 处理错误
+  void _handleError(DioException error) {
+    String message;
+    int code;
 
-  ErrorEntity _createErrorEntity(DioException error) {
     switch (error.type) {
       case DioExceptionType.cancel:
-        return ErrorEntity(code: -1, message: "请求取消");
+        message = "请求已取消";
+        code = -1;
+        break;
       case DioExceptionType.connectionTimeout:
-        return ErrorEntity(code: -1, message: "连接超时");
+        message = "连接超时";
+        code = -2;
+        break;
       case DioExceptionType.sendTimeout:
-        return ErrorEntity(code: -1, message: "请求超时");
+        message = "发送超时";
+        code = -3;
+        break;
       case DioExceptionType.receiveTimeout:
-        return ErrorEntity(code: -1, message: "响应超时");
+        message = "接收超时";
+        code = -4;
+        break;
       case DioExceptionType.badResponse:
-        int errCode = error.response?.statusCode ?? -1;
-        String errMsg = error.response?.statusMessage ?? "未知错误";
-        return ErrorEntity(code: errCode, message: errMsg);
+        code = error.response?.statusCode ?? -5;
+        message = error.response?.statusMessage ?? "服务器错误";
+        break;
       default:
-        return ErrorEntity(code: -1, message: error.message ?? "未知异常");
+        code = -6;
+        message = error.message ?? "网络异常";
+        break;
     }
+
+    logger.e('请求错误: code=$code, message=$message');
+
+    // 显示错误提示
+    toastInfo(message);
+  }
+
+  /// 处理未授权
+  void _handleUnauthorized() {
+    logger.w('用户未授权，跳转到登录页');
+    SPUtils.remove('AppAuthToken');
+    get_x.Get.offAllNamed(AppRoutes.login);
   }
 
   /// 获取认证请求头
   Future<Map<String, dynamic>> _getAuthorizationHeader() async {
     var headers = <String, dynamic>{};
     String? token = SPUtils.getString('AppAuthToken');
-    if (token != null && token.isNotEmpty) headers['X-Token'] = token;
+    if (token != null && token.isNotEmpty) {
+      headers['X-Token'] = token;
+    }
     return headers;
   }
 
   /// 创建带baseUrl的Dio实例
-  Dio _getDioWithBaseUrl(String? baseUrl) {
-    if (baseUrl != null && baseUrl.isNotEmpty) {
-      final options = _dio.options.copyWith(baseUrl: baseUrl);
-      final newDio = Dio(options);
-
-      // 复制拦截器
-      for (var interceptor in _dio.interceptors) {
-        newDio.interceptors.add(interceptor);
-      }
-      return newDio;
+  Dio _createDioWithBaseUrl(String? baseUrl) {
+    if (baseUrl == null || baseUrl.isEmpty) {
+      return _dio;
     }
-    return _dio;
+
+    final options = _dio.options.copyWith(baseUrl: baseUrl);
+    final newDio = Dio(options);
+
+    // 复制拦截器
+    for (var interceptor in _dio.interceptors) {
+      newDio.interceptors.add(interceptor);
+    }
+
+    return newDio;
   }
 
-  // 👇 新增：流式请求的专用方法
-  Future<Response<ResponseBody>> streamRequest({
+  /// 通用请求方法
+  Future<ApiResponse<T>> request<T>({
+    required String url,
+    required String method,
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    String? baseUrl,
+    Options? options,
+    T Function(dynamic)? fromJson,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final dio = _createDioWithBaseUrl(baseUrl);
+      final requestOptions = options ?? Options();
+
+      Response response;
+
+      switch (method.toUpperCase()) {
+        case 'GET':
+          response = await dio.get(
+            url,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: cancelToken ?? this.cancelToken,
+          );
+          break;
+        case 'POST':
+          response = await dio.post(
+            url,
+            data: data,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: cancelToken ?? this.cancelToken,
+          );
+          break;
+        case 'PUT':
+          response = await dio.put(
+            url,
+            data: data,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: cancelToken ?? this.cancelToken,
+          );
+          break;
+        case 'PATCH':
+          response = await dio.patch(
+            url,
+            data: data,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: cancelToken ?? this.cancelToken,
+          );
+          break;
+        case 'DELETE':
+          response = await dio.delete(
+            url,
+            data: data,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: cancelToken ?? this.cancelToken,
+          );
+          break;
+        default:
+          throw ArgumentError('不支持的请求方法: $method');
+      }
+
+      // 处理响应数据
+      final responseData = response.data;
+
+      // 如果是标准格式的响应
+      if (responseData is Map<String, dynamic> &&
+          responseData.containsKey('code')) {
+        final apiResponse = ApiResponse<T>.fromJson(responseData, fromJson);
+
+        // 如果是业务错误，抛出异常
+        if (!apiResponse.success) {
+          throw RequestException(
+            code: apiResponse.code,
+            message: apiResponse.message,
+          );
+        }
+
+        return apiResponse;
+      }
+
+      // 如果是非标准格式，直接包装成功响应
+      return ApiResponse<T>.success(
+        fromJson != null ? fromJson(responseData) : responseData as T,
+      );
+    } on DioException catch (e) {
+      throw RequestException(
+        code: e.response?.statusCode ?? -1,
+        message: e.message ?? '网络请求失败',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// 流式请求
+  Future<void> streamRequest({
     required String url,
     required String method,
     dynamic data,
@@ -182,319 +360,260 @@ class ApiService {
     String? baseUrl,
     Options? options,
     CancelToken? cancelToken,
+    required void Function(String chunk) onData,
+    void Function(RequestException error)? onError,
+    void Function()? onDone,
   }) async {
-    final dio = _getDioWithBaseUrl(baseUrl);
+    try {
+      final dio = _createDioWithBaseUrl(baseUrl);
 
-    // 准备请求选项
-    Options requestOptions = options ?? Options();
-    requestOptions.responseType = ResponseType.stream;
-    requestOptions.headers = {
-      ...requestOptions.headers ?? {},
-      ...await _getAuthorizationHeader(),
-    };
+      final requestOptions = (options ?? Options()).copyWith(
+        responseType: ResponseType.stream,
+      );
 
-    switch (method.toLowerCase()) {
-      case 'get':
-        return await dio.get<ResponseBody>(
-          url,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: cancelToken ?? this.cancelToken,
-        );
-      case 'post':
-        return await dio.post<ResponseBody>(
-          url,
-          data: data,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: cancelToken ?? this.cancelToken,
-        );
-      case 'put':
-        return await dio.put<ResponseBody>(
-          url,
-          data: data,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: cancelToken ?? this.cancelToken,
-        );
-      case 'patch':
-        return await dio.patch<ResponseBody>(
-          url,
-          data: data,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: cancelToken ?? this.cancelToken,
-        );
-      case 'delete':
-        return await dio.delete<ResponseBody>(
-          url,
-          data: data,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: cancelToken ?? this.cancelToken,
-        );
-      default:
-        throw ArgumentError('不支持的请求方法: $method');
+      Response<ResponseBody> response;
+
+      switch (method.toUpperCase()) {
+        case 'GET':
+          response = await dio.get<ResponseBody>(
+            url,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: cancelToken ?? this.cancelToken,
+          );
+          break;
+        case 'POST':
+          response = await dio.post<ResponseBody>(
+            url,
+            data: data,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: cancelToken ?? this.cancelToken,
+          );
+          break;
+        default:
+          throw ArgumentError('流式请求暂不支持方法: $method');
+      }
+
+      logger.i("✅ 流式连接成功：${response.statusCode}");
+
+      final stream = response.data!.stream;
+      final transformer = utf8.decoder.bind(stream);
+
+      await for (final chunk in transformer) {
+        if (chunk.trim().isNotEmpty) {
+          onData(chunk);
+        }
+      }
+
+      onDone?.call();
+    } on DioException catch (e) {
+      final error = RequestException(
+        code: e.response?.statusCode ?? -1,
+        message: e.message ?? '流式请求失败',
+        details: e.toString(),
+      );
+      logger.e("❌ 流式请求错误：$error");
+      onError?.call(error);
+    } catch (e) {
+      final error = RequestException(
+        code: -1,
+        message: '流式请求异常',
+        details: e.toString(),
+      );
+      logger.e("❌ 流式请求异常：$error");
+      onError?.call(error);
     }
   }
 }
 
-/// 统一请求方法（类似Vue的request函数）
-Future<T> request<T>({
-  required String url,
-  required String method,
-  dynamic data,
-  Map<String, dynamic>? queryParameters,
-  String? baseUrl,
-  Options? options,
-  bool refresh = false,
-  bool noCache = false,
-  bool list = false,
-  String cacheKey = '',
-  bool cacheDisk = false,
-}) async {
-  final apiService = ApiService();
-  final dio = apiService._getDioWithBaseUrl(baseUrl);
+// http_client.dart
+/// HTTP客户端封装
+class HttpClient {
+  static final ApiService _apiService = ApiService();
 
-  // 准备请求选项
-  Options requestOptions = options ?? Options();
-  requestOptions.extra = {
-    "refresh": refresh,
-    "noCache": noCache,
-    "list": list,
-    "cacheKey": cacheKey,
-    "cacheDisk": cacheDisk,
-  };
-  requestOptions.headers = await apiService._getAuthorizationHeader();
-
-  Response response;
-
-  try {
-    switch (method.toLowerCase()) {
-      case 'get':
-        response = await dio.get(
-          url,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: apiService.cancelToken,
-        );
-        break;
-      case 'post':
-        response = await dio.post(
-          url,
-          data: data,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: apiService.cancelToken,
-        );
-        break;
-      case 'put':
-        response = await dio.put(
-          url,
-          data: data,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: apiService.cancelToken,
-        );
-        break;
-      case 'patch':
-        response = await dio.patch(
-          url,
-          data: data,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: apiService.cancelToken,
-        );
-        break;
-      case 'delete':
-        response = await dio.delete(
-          url,
-          data: data,
-          queryParameters: queryParameters,
-          options: requestOptions,
-          cancelToken: apiService.cancelToken,
-        );
-        break;
-      default:
-        throw ArgumentError('不支持的请求方法: $method');
-    }
-
-    // 直接返回业务数据，类似Vue项目的习惯
-    return response.data as T;
-  } catch (e) {
-    rethrow;
-  }
-}
-
-/// 便捷的HTTP方法封装
-class Http {
   /// GET请求
-  static Future<T> get<T>(
+  static Future<ApiResponse<T>> get<T>(
     String url, {
     Map<String, dynamic>? queryParameters,
     String? baseUrl,
     Options? options,
-    bool refresh = false,
-    bool noCache = false,
-    bool list = false,
-    String cacheKey = '',
-    bool cacheDisk = false,
+    T Function(dynamic)? fromJson,
+    CancelToken? cancelToken,
   }) {
-    return request<T>(
+    return _apiService.request<T>(
       url: url,
       method: 'GET',
       queryParameters: queryParameters,
       baseUrl: baseUrl,
       options: options,
-      refresh: refresh,
-      noCache: noCache,
-      list: list,
-      cacheKey: cacheKey,
-      cacheDisk: cacheDisk,
+      fromJson: fromJson,
+      cancelToken: cancelToken,
     );
   }
 
   /// POST请求
-  static Future<T> post<T>(
+  static Future<ApiResponse<T>> post<T>(
     String url, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     String? baseUrl,
     Options? options,
+    T Function(dynamic)? fromJson,
+    CancelToken? cancelToken,
   }) {
-    return request<T>(
+    return _apiService.request<T>(
       url: url,
       method: 'POST',
       data: data,
       queryParameters: queryParameters,
       baseUrl: baseUrl,
       options: options,
+      fromJson: fromJson,
+      cancelToken: cancelToken,
     );
   }
 
   /// PUT请求
-  static Future<T> put<T>(
+  static Future<ApiResponse<T>> put<T>(
     String url, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     String? baseUrl,
     Options? options,
+    T Function(dynamic)? fromJson,
+    CancelToken? cancelToken,
   }) {
-    return request<T>(
+    return _apiService.request<T>(
       url: url,
       method: 'PUT',
       data: data,
       queryParameters: queryParameters,
       baseUrl: baseUrl,
       options: options,
+      fromJson: fromJson,
+      cancelToken: cancelToken,
     );
   }
 
   /// PATCH请求
-  static Future<T> patch<T>(
+  static Future<ApiResponse<T>> patch<T>(
     String url, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     String? baseUrl,
     Options? options,
+    T Function(dynamic)? fromJson,
+    CancelToken? cancelToken,
   }) {
-    return request<T>(
+    return _apiService.request<T>(
       url: url,
       method: 'PATCH',
       data: data,
       queryParameters: queryParameters,
       baseUrl: baseUrl,
       options: options,
+      fromJson: fromJson,
+      cancelToken: cancelToken,
     );
   }
 
   /// DELETE请求
-  static Future<T> delete<T>(
+  static Future<ApiResponse<T>> delete<T>(
     String url, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     String? baseUrl,
     Options? options,
+    T Function(dynamic)? fromJson,
+    CancelToken? cancelToken,
   }) {
-    return request<T>(
+    return _apiService.request<T>(
       url: url,
       method: 'DELETE',
       data: data,
       queryParameters: queryParameters,
       baseUrl: baseUrl,
       options: options,
+      fromJson: fromJson,
+      cancelToken: cancelToken,
     );
   }
 
   /// 表单提交
-  static Future<T> postForm<T>(
+  static Future<ApiResponse<T>> postForm<T>(
     String url, {
-    required dynamic data,
+    required Map<String, dynamic> data,
     Map<String, dynamic>? queryParameters,
     String? baseUrl,
     Options? options,
-  }) async {
+    T Function(dynamic)? fromJson,
+    CancelToken? cancelToken,
+  }) {
     final formData = FormData.fromMap(data);
-    return request<T>(
-      url: url,
-      method: 'POST',
+    return post<T>(
+      url,
       data: formData,
       queryParameters: queryParameters,
       baseUrl: baseUrl,
       options: options,
+      fromJson: fromJson,
+      cancelToken: cancelToken,
     );
   }
 
   /// 文件上传
-  static Future<T> upload<T>(
+  static Future<ApiResponse<T>> upload<T>(
     String url, {
-    required dynamic data,
+    required Map<String, dynamic> data,
     required List<File> files,
     String? baseUrl,
     Options? options,
+    T Function(dynamic)? fromJson,
+    CancelToken? cancelToken,
+    String fileFieldName = 'files',
   }) async {
     final formData = FormData.fromMap(data);
-    // 添加文件到FormData
+
+    // 添加文件
     for (var file in files) {
       formData.files.add(MapEntry(
-        'files',
+        fileFieldName,
         await MultipartFile.fromFile(file.path),
       ));
     }
 
-    return request<T>(
-      url: url,
-      method: 'POST',
+    return post<T>(
+      url,
       data: formData,
       baseUrl: baseUrl,
       options: options,
+      fromJson: fromJson,
+      cancelToken: cancelToken,
     );
   }
 
   /// 下载文件
   static Future<Response> download(
     String url,
-    dynamic savePath, {
+    String savePath, {
     ProgressCallback? onReceiveProgress,
     Map<String, dynamic>? queryParameters,
     String? baseUrl,
     CancelToken? cancelToken,
     bool deleteOnError = true,
-    String lengthHeader = Headers.contentLengthHeader,
     Object? data,
     Options? options,
   }) async {
-    final apiService = ApiService();
-    final dio = apiService._getDioWithBaseUrl(baseUrl);
+    final dio = _apiService._createDioWithBaseUrl(baseUrl);
 
     return dio.download(
       url,
       savePath,
       onReceiveProgress: onReceiveProgress,
       queryParameters: queryParameters,
-      cancelToken: cancelToken ?? apiService.cancelToken,
+      cancelToken: cancelToken ?? _apiService.cancelToken,
       deleteOnError: deleteOnError,
-      lengthHeader: lengthHeader,
       data: data,
       options: options,
     );
@@ -509,36 +628,21 @@ class Http {
     Options? options,
     CancelToken? cancelToken,
     required void Function(String chunk) onData,
-    void Function(dynamic error)? onError,
+    void Function(RequestException error)? onError,
     void Function()? onDone,
-  }) async {
-    try {
-      final response = await ApiService().streamRequest(
-        url: url,
-        method: 'POST',
-        data: data,
-        queryParameters: queryParameters,
-        baseUrl: baseUrl,
-        options: options,
-        cancelToken: cancelToken,
-      );
-
-      logger.i("✅ 流式连接成功：${response.statusCode}");
-
-      final stream = response.data!.stream;
-      final transformer = utf8.decoder.bind(stream);
-
-      await for (final line in transformer) {
-        if (line.trim().isNotEmpty) {
-          onData(line);
-        }
-      }
-
-      onDone?.call();
-    } catch (e) {
-      logger.e("❌ 流式请求错误：$e");
-      onError?.call(e);
-    }
+  }) {
+    return _apiService.streamRequest(
+      url: url,
+      method: 'POST',
+      data: data,
+      queryParameters: queryParameters,
+      baseUrl: baseUrl,
+      options: options,
+      cancelToken: cancelToken,
+      onData: onData,
+      onError: onError,
+      onDone: onDone,
+    );
   }
 
   /// 流式GET请求
@@ -549,46 +653,19 @@ class Http {
     Options? options,
     CancelToken? cancelToken,
     required void Function(String chunk) onData,
-    void Function(dynamic error)? onError,
+    void Function(RequestException error)? onError,
     void Function()? onDone,
-  }) async {
-    try {
-      final response = await ApiService().streamRequest(
-        url: url,
-        method: 'GET',
-        queryParameters: queryParameters,
-        baseUrl: baseUrl,
-        options: options,
-        cancelToken: cancelToken,
-      );
-
-      logger.i("✅ 流式连接成功：${response.statusCode}");
-
-      final stream = response.data!.stream;
-      final transformer = utf8.decoder.bind(stream);
-
-      await for (final line in transformer) {
-        if (line.trim().isNotEmpty) {
-          onData(line);
-        }
-      }
-
-      onDone?.call();
-    } catch (e) {
-      logger.e("❌ 流式请求错误：$e");
-      onError?.call(e);
-    }
+  }) {
+    return _apiService.streamRequest(
+      url: url,
+      method: 'GET',
+      queryParameters: queryParameters,
+      baseUrl: baseUrl,
+      options: options,
+      cancelToken: cancelToken,
+      onData: onData,
+      onError: onError,
+      onDone: onDone,
+    );
   }
-}
-
-/// 异常类
-class ErrorEntity implements Exception {
-  int code;
-  String message;
-
-  ErrorEntity({required this.code, required this.message});
-
-  @override
-  String toString() =>
-      message.isEmpty ? "Exception" : "Exception: code $code, $message";
 }

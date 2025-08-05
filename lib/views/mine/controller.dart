@@ -31,18 +31,18 @@ class MineController extends GetxController {
       logger.i('缓存结果：$cacheData');
       _updateUserState(cacheData); // 渲染页面
     }
-
+    final res = await AuthAPI.getUserInfo();
+    logger.i('接口返回：$res');
     // ② 调用接口刷新
     try {
       final res = await AuthAPI.getUserInfo();
-      if (res['code'] == 0 && res['data'] != null) {
-        final userInfo = res['data']['userInfo'];
-        logger.i('调用结果：$userInfo');
-        await SPUtils.setString('UserInfo', jsonEncode(userInfo));
-    
-        // 如果没有缓存时，接口返回成功后再渲染一次
-        if (!hasCache) _updateUserState(userInfo);
-      }
+      logger.i('接口返回：$res');
+      final userInfo = res['userInfo'];
+      logger.i('调用结果：$userInfo');
+      await SPUtils.setString('UserInfo', jsonEncode(userInfo));
+
+      // 如果没有缓存时，接口返回成功后再渲染一次
+      if (!hasCache) _updateUserState(userInfo);
     } catch (e) {
       logger.e('获取用户信息失败：$e');
     }
@@ -61,7 +61,7 @@ class MineController extends GetxController {
     state.signedIn.value = 0;
     final res = await AuthAPI.checkIn();
     logger.i("调用签到：$res");
-    if(res['code'] == 0) {}
+    // if(res['code'] == 0) {}
     toastInfo('签到成功！');
   }
 

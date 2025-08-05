@@ -1,5 +1,5 @@
 import 'package:get/get.dart';
-import 'package:notory/api/notes/index.dart';
+import 'package:notory/api/blog/index.dart';
 import 'package:notory/utils/logger.dart';
 import 'package:notory/views/notes/state.dart';
 
@@ -33,13 +33,12 @@ class NotesController extends GetxController {
     state.pageNum.value = 1;
 
     try {
-      final res = await NotesAPI.getBlogList(
+      final res = await BlogAPI.getBlogList(
         page: state.pageNum.value,
         pageSize: state.pageSize.value,
       );
-      final list = res['list'];
-      final total = res['total'];
-
+      final list = res.list;
+      final total = res.total;
       state.list.value = list;
       state.hasMore.value =
           (state.pageNum.value * state.pageSize.value) < total;
@@ -57,13 +56,12 @@ class NotesController extends GetxController {
     state.pageNum.value++;
 
     try {
-      final res = await NotesAPI.getBlogList(
+      final res = await BlogAPI.getBlogList(
         page: state.pageNum.value,
         pageSize: state.pageSize.value,
       );
-      final list = res['data']['list'];
-      final total = res['data']['total'];
-
+      final list = res.list;
+      final total = res.total;
       state.list.addAll(list);
       state.hasMore.value =
           (state.pageNum.value * state.pageSize.value) < total;
